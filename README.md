@@ -9,6 +9,8 @@ Requires Python 3 to be installed on your system.
 - Allows inputting a previous guess to narrow the answers
 
 ## TODO
-[ ] Implement this as a CSP problem and use something like GAC to speed the process up ~100,000x
+- [ ] Optimize search space
+- [ ] Add support for multiple guesses
+- [ ] Implement this as a CSP problem and use something like GAC to speed the process up ~100,000x
 
 Usage: `python3 solver.py`
