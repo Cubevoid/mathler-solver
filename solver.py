@@ -1,85 +1,166 @@
 import itertools
-from tqdm import tqdm
+import warnings
+import math
+from random import shuffle
 
-GUESS_LENGTH = 6
+warnings.filterwarnings("ignore")
 
-print('Enter goal number: ')
-goal = int(input())
 
-print('Enter previous guess (empty for none): ')
-prev_guess = input()
+def main():
+    diff = input('Enter difficulty (easy, medium, hard): ')
+    if diff[0].lower() == 'e':
+        guess_length = 5
+        max_op_count = 1
+    elif diff[0].lower() == 'm':
+        guess_length = 6
+        max_op_count = 2
+    elif diff[0].lower() == 'h':
+        guess_length = 8
+        max_op_count = 3
+    else:
+        raise ValueError('Invalid difficulty')
 
-yellow = []  # tuples are (value, index) where index is the known WRONG index
-grey = []
-green = []
+    goal = int(input('Enter goal number: '))
 
-if prev_guess:
-    if len(prev_guess) != GUESS_LENGTH:
-        raise ValueError('Invalid previous guess')
+    prev_guess = input('Enter previous guess (empty for none): ')
 
-    print('Enter result for previous guess (G=green, Y=yellow, X=grey): ')
-    result = input()
-    if len(result) != GUESS_LENGTH:
-        raise ValueError('Invalid result')
+    alphabet = '1234567890*/+-'
+    if guess_length == 8:  # hard mode
+        alphabet += '()'
+    ops = '+-*/'
+    digits = '0123456789'
 
-    for i in range(len(result)):
-        if result[i] == 'G':
-            green.append((prev_guess[i], i))
-        elif result[i] == 'Y':
-            yellow.append((prev_guess[i], i))
-        elif result[i] == 'X':
-            grey.append(prev_guess[i])
-        else:
+    # Index is symbol and value is list of indices in guess
+    green = {}
+    yellow = {}
+    grey = set()
+
+    for char in alphabet:
+        green[char] = []
+        yellow[char] = []
+
+    if prev_guess:
+        if len(prev_guess) != guess_length or eval(prev_guess) != goal:
+            raise ValueError('Invalid previous guess')
+
+        result = input('Enter result for previous guess (G=green, Y=yellow, X=grey): ')
+
+        if len(result) != guess_length:
             raise ValueError('Invalid result')
 
-alphabet = '1234567890*/+-'
-ops = '+-*/'
-digits = '0123456789'
-perms = itertools.product(*([alphabet] * 6))  # permutations with replacement
+        for i in range(len(result)):
+            if result[i] == 'G':
+                green[prev_guess[i]].append(i)
+            elif result[i] == 'Y':
+                yellow[prev_guess[i]].append(i)
+            elif result[i] == 'X':
+                grey.add(prev_guess[i])
+            else:
+                raise ValueError('Invalid result')
 
-answers = []
+    # Lower and upper bounds for counts of characters in the answer
+    alphabet_min_max = {}
+    for char in alphabet:
+        min = 0
+        max = math.inf
+        min += len(green[char])
+        min += len(yellow[char])
 
-print('\nComputing possible answers...')
+        if char in grey:
+            max = min
 
-for permutation in tqdm(perms):
-    exp = "".join(permutation)
+        alphabet_min_max[char] = (min, max)
 
-    invalid = False
+    # Remove symbols we know aren't in the answer
+    alphabet = list(alphabet)
+    shuffle(alphabet)
+    for char in alphabet:
+        if alphabet_min_max[char][1] == 0:
+            alphabet.remove(char)
+    alphabet = "".join(alphabet)
 
-    # Test for invalid mathler expressions
-    for i in range(len(exp) - 1):
-        # No two operators in a row (not sure if this is right)
-        if exp[i] in ops and exp[i+1] in ops:
+    print(f'\nPossible symbols: {alphabet}')
+
+    perms = itertools.product(*[alphabet] * guess_length)  # permutations with replacement
+
+    print('\n========== POSSIBLE ANSWERS ==========')
+
+    for permutation in perms:
+        exp = "".join(permutation)
+
+        invalid = False
+
+        # Test for invalid mathler expressions
+        for i in range(len(exp) - 1):
+            # No two operators in a row (not sure if this is right)
+            if exp[i] in ops and exp[i + 1] in ops:
+                invalid = True
+                break
+            # No leading 0's
+            if exp[i] == '0' and exp[i + 1] in digits:
+                invalid = True
+                break
+
+        # Check number of operators
+        op_count = 0
+        for char in exp:
+            if char in ops:
+                op_count += 1
+        if op_count > max_op_count:
             invalid = True
-            break
 
-        # No leading 0's
-        elif exp[i] == '0' and exp[i+1] in digits:
-            invalid = True
-            break
-    
-    for g in green:
-        if exp[g[1]] != g[0]:
-            invalid = True
+        # Check green boxes
+        if not invalid:
+            for g in green.keys():
+                for i in green[g]:
+                    if exp[i] != g:
+                        invalid = True
+                        break
 
-    for y in yellow:
-        if y[0] not in exp:
-            invalid = True
-        if exp[y[1]] == y[0]:
-            invalid = True
+        # Check yellow boxes
+        if not invalid:
+            for y in yellow.keys():
+                for i in yellow[y]:
+                    if exp[i] == y:
+                        # Cannot have that symbol on yellow space
+                        invalid = True
+                        break
+                if yellow[y] and exp.count(y) - len(green[y]) != len(yellow[y]):
+                    # Number of yellows doesn't match
+                    invalid = True
+                    break
 
-    for g in grey:
-        if g in exp:
-            invalid = True
-    
-    if not invalid:
-        try:
-            result = eval(exp)
-            if result == goal:
-                answers.append(exp)
-        except Exception:
-            pass
+        if not invalid:
+            for g in grey:
+                if exp.count(g) - len(green[g]) - len(yellow[g]) > 0:
+                    invalid = True
+                    break
 
-print('\n========== POSSIBLE ANSWERS ==========')
-for a in answers:
-    print(a)
+        if not invalid:
+            if not matched(exp):
+                invalid = True
+
+        if not invalid:
+            try:
+                result = eval(exp)
+                if result == goal:
+                    print(exp)
+            except Exception:
+                pass
+
+
+# https://stackoverflow.com/a/38834005/13176711
+def matched(str):
+    count = 0
+    for i in str:
+        if i == "(":
+            count += 1
+        elif i == ")":
+            count -= 1
+        if count < 0:
+            return False
+    return count == 0
+
+
+if __name__ == '__main__':
+    main()
