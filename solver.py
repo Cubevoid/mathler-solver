@@ -101,13 +101,17 @@ def main():
                 invalid = True
                 break
 
+        if not invalid and diff[0].lower() == 'h' and not matched(exp):
+            invalid = True
+
         # Check number of operators
         op_count = 0
         for char in exp:
             if char in ops:
                 op_count += 1
-        if op_count > max_op_count:
-            invalid = True
+                if op_count > max_op_count:
+                    invalid = True
+                    break
 
         # Check green boxes
         if not invalid:
@@ -135,10 +139,6 @@ def main():
                 if exp.count(g) - len(green[g]) - len(yellow[g]) > 0:
                     invalid = True
                     break
-
-        if not invalid:
-            if not matched(exp):
-                invalid = True
 
         if not invalid:
             try:
